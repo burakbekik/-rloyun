@@ -1,0 +1,316 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Vücudumuzun Yapbozu - İskelet Sistemi</title>
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.5.1/dist/confetti.browser.min.js"></script>
+    <style>
+        :root { 
+            --bone-bg: #ffffff; 
+            --bone-border: #94a3b8;
+            --accent: #2563eb; 
+            --bg-light: #f8fafc;
+        }
+        
+        body {
+            margin: 0; 
+            background: radial-gradient(circle at center, #e2e8f0 0%, #cbd5e1 100%);
+            height: 100vh; 
+            overflow: hidden; 
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
+            touch-action: none;
+        }
+
+        /* Arka plan ızgarası */
+        body::before {
+            content: ""; position: absolute; inset: 0;
+            background-image: linear-gradient(rgba(37, 99, 235, 0.05) 2px, transparent 2px), 
+                              linear-gradient(90deg, rgba(37, 99, 235, 0.05) 2px, transparent 2px);
+            background-size: 50px 50px; pointer-events: none;
+        }
+
+        /* Oyun İsmi (SAĞ ÜSTTE) */
+        #game-title {
+            position: fixed;
+            top: 20px;
+            right: 20px; /* Sol yerine Sağ */
+            font-size: 28px;
+            font-weight: 800;
+            color: #1e293b;
+            background: rgba(255, 255, 255, 0.7);
+            padding: 10px 20px;
+            border-radius: 15px;
+            border: 2px solid #ffffff;
+            backdrop-filter: blur(5px);
+            box-shadow: 0 4px 10px rgba(0,0,0,0.05);
+            z-index: 1000;
+        }
+
+        #game-container { position: relative; width: 100%; height: 100%; display: flex; justify-content: center; align-items: center; }
+        
+        /* Ana Panel */
+        .skeleton-main {
+            position: relative; width: 400px; height: 700px;
+            background: rgba(255, 255, 255, 0.4); 
+            border: 3px solid #ffffff; 
+            border-radius: 40px;
+            box-shadow: 0 20px 50px rgba(0,0,0,0.1);
+            backdrop-filter: blur(5px);
+        }
+
+        /* Hedef Alanlar */
+        .target { 
+            position: absolute; 
+            border: 2px dashed rgba(37, 99, 235, 0.3); 
+            background: rgba(255,255,255,0.2);
+            border-radius: 10px; 
+            pointer-events: none; 
+        }
+
+        /* Kemik Üniteleri */
+        .bone-unit { 
+            position: absolute; 
+            z-index: 100; 
+            display: flex; 
+            flex-direction: column; 
+            align-items: center; 
+            cursor: grab; 
+            transition: transform 0.2s, opacity 0.5s;
+        }
+        .bone-unit:active { transform: scale(1.05); cursor: grabbing; }
+
+        .visual { 
+            background: var(--bone-bg); 
+            border: 3px solid var(--bone-border); 
+            box-shadow: 4px 4px 0px rgba(0,0,0,0.1); 
+            pointer-events: none; 
+            position: relative;
+        }
+
+        .visual::after {
+            content: ""; position: absolute; inset: 5px;
+            border-radius: inherit; border: 1px solid rgba(0,0,0,0.05);
+        }
+
+        .label { 
+            color: #1e293b; 
+            font-size: 11px; 
+            margin-top: 6px; 
+            font-weight: 800; 
+            background: #ffffff; 
+            padding: 3px 8px; 
+            border-radius: 20px; 
+            border: 1px solid var(--bone-border);
+            pointer-events: none; 
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+            white-space: nowrap; /* Yazının taşmasını önle */
+        }
+
+        /* Doktor Kutusu */
+        #doctor-box {
+            position: fixed; top: -250px; left: 30px; display: flex; align-items: center;
+            transition: top 0.6s cubic-bezier(0.175, 0.885, 0.32, 1.275); z-index: 2000;
+        }
+        #doctor-avatar { 
+            font-size: 55px; background: white; width: 90px; height: 90px; 
+            border-radius: 50%; display: flex; justify-content: center; align-items: center; 
+            border: 4px solid var(--accent); box-shadow: 0 10px 20px rgba(0,0,0,0.1);
+        }
+        #bubble { 
+            background: white; padding: 20px; border-radius: 25px; margin-left: 15px; 
+            font-weight: bold; color: #1e293b; max-width: 250px; 
+            box-shadow: 0 10px 25px rgba(0,0,0,0.1); border: 1px solid #e2e8f0;
+        }
+
+        /* Doğru Yerleştirildiğinde */
+        .placed .visual { 
+            background: #f0fdf4 !important; 
+            border-color: #22c55e !important; 
+            box-shadow: 0 0 20px rgba(34, 197, 94, 0.3);
+        }
+        .placed .label { display: none; } 
+        .placed { pointer-events: none !important; z-index: 10 !important; }
+
+        /* Kapanış Ekranı (Oyun Bittiğinde) */
+        #end-screen {
+            position: fixed;
+            inset: 0;
+            background: rgba(255, 255, 255, 0.9);
+            backdrop-filter: blur(10px);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 3000;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 1s ease-in-out;
+        }
+        #end-screen.visible {
+            opacity: 1;
+            pointer-events: auto;
+        }
+        #end-text {
+            font-size: 48px;
+            font-weight: 900;
+            color: #1e293b;
+            text-shadow: 0 4px 10px rgba(0,0,0,0.1);
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        #restart-btn {
+            padding: 15px 40px;
+            font-size: 20px;
+            font-weight: bold;
+            color: #ffffff;
+            background-color: var(--accent);
+            border: none;
+            border-radius: 30px;
+            cursor: pointer;
+            box-shadow: 0 10px 20px rgba(37, 99, 235, 0.3);
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        #restart-btn:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 15px 25px rgba(37, 99, 235, 0.4);
+        }
+        #restart-btn:active { transform: translateY(0); }
+
+    </style>
+</head>
+<body>
+
+<div id="game-title">Vücudumuzun Yapbozu</div>
+
+<div id="game-container">
+    <div id="main-canvas" class="skeleton-main">
+        <div id="dest-head" class="target" style="top: 25px; left: 165px; width: 70px; height: 90px; border-radius: 50%;"></div>
+        <div id="dest-torso" class="target" style="top: 125px; left: 140px; width: 120px; height: 180px; border-radius: 20px;"></div>
+        
+        <div id="dest-armL" class="target" style="top: 130px; left: 100px; width: 35px; height: 140px; border-radius: 15px;"></div>
+        <div id="dest-armR" class="target" style="top: 130px; left: 265px; width: 35px; height: 140px; border-radius: 15px;"></div>
+        
+        <div id="dest-handL" class="target" style="top: 275px; left: 95px; width: 45px; height: 45px; border-radius: 12px;"></div>
+        <div id="dest-handR" class="target" style="top: 275px; left: 260px; width: 45px; height: 45px; border-radius: 12px;"></div>
+        
+        <div id="dest-legL" class="target" style="top: 315px; left: 150px; width: 45px; height: 180px; border-radius: 20px;"></div>
+        <div id="dest-legR" class="target" style="top: 315px; left: 205px; width: 45px; height: 180px; border-radius: 20px;"></div>
+        
+        <div id="dest-footL" class="target" style="top: 505px; left: 135px; width: 60px; height: 45px; border-radius: 12px;"></div>
+        <div id="dest-footR" class="target" style="top: 505px; left: 205px; width: 60px; height: 45px; border-radius: 12px;"></div>
+    </div>
+
+    <div id="head" class="bone-unit" style="top: 80px; left: 50px;"><div class="visual" style="width: 70px; height: 90px; border-radius: 50% 50% 45% 45%;"></div><div class="label">KAFATASI</div></div>
+    <div id="torso" class="bone-unit" style="top: 80px; right: 50px;"><div class="visual" style="width: 120px; height: 180px; border-radius: 20px 20px 50px 50px;"></div><div class="label">GÖVDE</div></div>
+    
+    <div id="armL" class="bone-unit" style="top: 310px; left: 30px;"><div class="visual" style="width: 35px; height: 140px; border-radius: 15px;"></div><div class="label">SOL KOL</div></div>
+    <div id="armR" class="bone-unit" style="top: 310px; right: 30px;"><div class="visual" style="width: 35px; height: 140px; border-radius: 15px;"></div><div class="label">SAĞ KOL</div></div>
+
+    <div id="handL" class="bone-unit" style="bottom: 120px; left: 60px;"><div class="visual" style="width: 45px; height: 45px; border-radius: 10px;"></div><div class="label">SOL EL</div></div>
+    <div id="handR" class="bone-unit" style="bottom: 120px; right: 60px;"><div class="visual" style="width: 45px; height: 45px; border-radius: 10px;"></div><div class="label">SAĞ EL</div></div>
+
+    <div id="legL" class="bone-unit" style="top: 510px; left: 70px;"><div class="visual" style="width: 45px; height: 180px; border-radius: 20px;"></div><div class="label">SOL BACAK</div></div>
+    <div id="legR" class="bone-unit" style="top: 510px; right: 70px;"><div class="visual" style="width: 45px; height: 180px; border-radius: 20px;"></div><div class="label">SAĞ BACAK</div></div>
+
+    <div id="footL" class="bone-unit" style="bottom: 50px; left: 140px;"><div class="visual" style="width: 60px; height: 45px; border-radius: 10px;"></div><div class="label">SOL AYAK</div></div>
+    <div id="footR" class="bone-unit" style="bottom: 50px; right: 140px;"><div class="visual" style="width: 60px; height: 45px; border-radius: 10px;"></div><div class="label">SAĞ AYAK</div></div>
+</div>
+
+<div id="doctor-box"><div id="doctor-avatar">👨‍⚕️</div><div id="bubble">Harika gidiyorsun! Parçalar tam yerine oturuyor.</div></div>
+
+<div id="end-screen">
+    <div id="doctor-avatar" style="width: 120px; height: 120px; font-size: 70px; margin-bottom: 20px;">👨‍⚕️</div>
+    <div id="end-text">Oynadığınız İçin Teşekkürler!</div>
+    <button id="restart-btn" onclick="location.reload()">Tekrar Oyna</button>
+</div>
+
+<script>
+    const bones = document.querySelectorAll('.bone-unit');
+    const drBox = document.getElementById('doctor-box');
+    const endScreen = document.getElementById('end-screen');
+    let placedCount = 0;
+
+    bones.forEach(bone => {
+        let isDragging = false;
+        let startX, startY;
+
+        bone.addEventListener('pointerdown', e => {
+            if(bone.classList.contains('placed')) return;
+            isDragging = true;
+            const bRect = bone.getBoundingClientRect();
+            startX = e.clientX - bRect.left;
+            startY = e.clientY - bRect.top;
+            bone.setPointerCapture(e.pointerId);
+            bone.style.zIndex = 1000;
+        });
+
+        bone.addEventListener('pointermove', e => {
+            if (!isDragging) return;
+            bone.style.left = (e.clientX - startX) + 'px';
+            bone.style.top = (e.clientY - startY) + 'px';
+            bone.style.right = 'auto';
+            bone.style.bottom = 'auto';
+        });
+
+        bone.addEventListener('pointerup', e => {
+            isDragging = false;
+            const target = document.getElementById('dest-' + bone.id);
+            const bRect = bone.getBoundingClientRect();
+            const tRect = target.getBoundingClientRect();
+
+            const bX = bRect.left + bRect.width / 2;
+            const bY = bRect.top + bRect.height / 2;
+            const tX = tRect.left + tRect.width / 2;
+            const tY = tRect.top + tRect.height / 2;
+
+            const dist = Math.hypot(bX - tX, bY - tY);
+
+            if (dist < 60) {
+                bone.style.left = tRect.left + 'px';
+                bone.style.top = tRect.top + 'px';
+                bone.classList.add('placed');
+                placedCount++;
+                
+                drBox.style.top = "30px";
+                setTimeout(() => drBox.style.top = "-250px", 2500);
+
+                if (placedCount === bones.length) {
+                    finalCelebration();
+                } else {
+                    confetti({ particleCount: 30, spread: 40, origin: { y: 0.8 }, colors: ['#2563eb', '#22c55e'] });
+                }
+            }
+        });
+    });
+
+    function finalCelebration() {
+        const end = Date.now() + 4000; // 4 saniye konfeti yağmuru
+        
+        (function frame() {
+            confetti({ particleCount: 7, angle: 60, spread: 55, origin: { x: 0 }, colors: ['#2563eb', '#22c55e', '#ffd700'] });
+            confetti({ particleCount: 7, angle: 120, spread: 55, origin: { x: 1 }, colors: ['#2563eb', '#22c55e', '#ffd700'] });
+            
+            if (Date.now() < end) {
+                requestAnimationFrame(frame);
+            } else {
+                // Konfetiler bittikten sonra kapanış ekranını göster
+                showEndScreen();
+            }
+        }());
+    }
+
+    function showEndScreen() {
+        // Doktor kutusunu gizle (eğer açıksa)
+        drBox.style.top = "-250px";
+        
+        // Kapanış ekranını aktifleştir
+        endScreen.classList.add('visible');
+        
+        // Arka plandaki parçaları hafifçe soluklaştır
+        document.getElementById('game-container').style.opacity = "0.3";
+        document.getElementById('game-title').style.opacity = "0.3";
+    }
+</script>
+</body>
+</html>

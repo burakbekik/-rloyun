@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>İskelet Sistemi - Milimetrik Hizalama</title>
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.5.1/dist/confetti.browser.min.js"></script>
+    <style>
+        :root { --bone: #fdfaf1; --accent: #00f2ff; }
+        body {
+            margin: 0; background: radial-gradient(circle at center, #0f172a 0%, #020617 100%);
+            height: 100vh; overflow: hidden; font-family: 'Segoe UI', sans-serif; touch-action: none;
+        }
+        body::before {
+            content: ""; position: absolute; inset: 0;
+            background-image: linear-gradient(rgba(0, 242, 255, 0.05) 1px, transparent 1px), 
+                              linear-gradient(90deg, rgba(0, 242, 255, 0.05) 1px, transparent 1px);
+            background-size: 40px 40px; pointer-events: none;
+        }
+
+        #game-container { position: relative; width: 100%; height: 100%; display: flex; justify-content: center; align-items: center; }
+        
+        /* Ana Panel */
+        .skeleton-main {
+            position: relative; width: 380px; height: 680px;
+            background: rgba(255, 255, 255, 0.02); border: 2px solid rgba(0, 242, 255, 0.2); border-radius: 40px;
+            box-shadow: 0 0 50px rgba(0,0,0,0.8);
+        }
+
+        /* Hedef Çizgileri - Milimetrik Ayar */
+        .target { position: absolute; border: 2px dashed rgba(255, 255, 255, 0.15); border-radius: 10px; pointer-events: none; }
+
+        /* Kemik Üniteleri */
+        .bone-unit { position: absolute; z-index: 100; display: flex; flex-direction: column; align-items: center; cursor: grab; }
+        .visual { background: var(--bone); border: 1px solid #d1c7ac; box-shadow: inset -4px -4px 10px rgba(0,0,0,0.2); pointer-events: none; }
+        .label { color: #cbd5e1; font-size: 10px; margin-top: 4px; font-weight: bold; background: rgba(0,0,0,0.6); padding: 2px 6px; border-radius: 4px; pointer-events: none; }
+
+        /* Sol Üst Doktor */
+        #doctor-box {
+            position: fixed; top: -250px; left: 30px; display: flex; align-items: center;
+            transition: top 0.6s cubic-bezier(0.175, 0.885, 0.32, 1.275); z-index: 2000;
+        }
+        #doctor-avatar { font-size: 55px; background: white; width: 100px; height: 100px; border-radius: 50%; display: flex; justify-content: center; align-items: center; border: 4px solid var(--accent); }
+        #bubble { background: white; padding: 18px; border-radius: 20px; margin-left: 20px; font-weight: bold; color: #1e293b; max-width: 240px; box-shadow: 0 5px 20px rgba(0,0,0,0.3); }
+
+        .placed .visual { filter: drop-shadow(0 0 15px var(--accent)) !important; border-color: var(--accent); }
+        .placed { pointer-events: none !important; z-index: 10 !important; }
+    </style>
+</head>
+<body>
+
+<div id="game-container">
+    <div id="main-canvas" class="skeleton-main">
+        <div id="dest-head" class="target" style="top: 20px; left: 155px; width: 70px; height: 90px;"></div>
+        <div id="dest-torso" class="target" style="top: 115px; left: 130px; width: 120px; height: 180px;"></div>
+        
+        <div id="dest-armL" class="target" style="top: 118px; left: 95px; width: 30px; height: 135px;"></div>
+        <div id="dest-armR" class="target" style="top: 118px; left: 255px; width: 30px; height: 135px;"></div>
+        
+        <div id="dest-handL" class="target" style="top: 255px; left: 87px; width: 45px; height: 45px;"></div>
+        <div id="dest-handR" class="target" style="top: 255px; left: 247px; width: 45px; height: 45px;"></div>
+        
+        <div id="dest-legL" class="target" style="top: 300px; left: 145px; width: 40px; height: 175px;"></div>
+        <div id="dest-legR" class="target" style="top: 300px; left: 195px; width: 40px; height: 175px;"></div>
+        
+        <div id="dest-footL" class="target" style="top: 480px; left: 135px; width: 55px; height: 40px;"></div>
+        <div id="dest-footR" class="target" style="top: 480px; left: 190px; width: 55px; height: 40px;"></div>
+    </div>
+
+    <div id="head" class="bone-unit" style="top: 40px; left: 40px;"><div class="visual" style="width: 70px; height: 90px; border-radius: 50% 50% 40% 40%;"></div><div class="label">KAFATASI</div></div>
+    <div id="torso" class="bone-unit" style="top: 40px; right: 40px;"><div class="visual" style="width: 120px; height: 180px; border-radius: 15px 15px 45% 45%;"></div><div class="label">GÖVDE</div></div>
+    
+    <div id="armL" class="bone-unit" style="top: 250px; left: 20px;"><div class="visual" style="width: 30px; height: 135px; border-radius: 15px;"></div><div class="label">SOL KOL</div></div>
+    <div id="armR" class="bone-unit" style="top: 250px; right: 20px;"><div class="visual" style="width: 30px; height: 135px; border-radius: 15px;"></div><div class="label">SAĞ KOL</div></div>
+
+    <div id="handL" class="bone-unit" style="bottom: 100px; left: 40px;"><div class="visual" style="width: 45px; height: 45px; border-radius: 10px;"></div><div class="label">SOL EL</div></div>
+    <div id="handR" class="bone-unit" style="bottom: 100px; right: 40px;"><div class="visual" style="width: 45px; height: 45px; border-radius: 10px;"></div><div class="label">SAĞ EL</div></div>
+
+    <div id="legL" class="bone-unit" style="top: 450px; left: 20px;"><div class="visual" style="width: 40px; height: 175px; border-radius: 20px;"></div><div class="label">SOL BACAK</div></div>
+    <div id="legR" class="bone-unit" style="top: 450px; right: 20px;"><div class="visual" style="width: 40px; height: 175px; border-radius: 20px;"></div><div class="label">SAĞ BACAK</div></div>
+
+    <div id="footL" class="bone-unit" style="bottom: 40px; left: 130px;"><div class="visual" style="width: 55px; height: 40px; border-radius: 10px;"></div><div class="label">SOL AYAK</div></div>
+    <div id="footR" class="bone-unit" style="bottom: 40px; right: 130px;"><div class="visual" style="width: 55px; height: 40px; border-radius: 10px;"></div><div class="label">SAĞ AYAK</div></div>
+</div>
+
+<div id="doctor-box"><div id="doctor-avatar">👨‍⚕️</div><div id="bubble">Evet tam yerine! İskelet sistemini öğrenmişsin gerçekten.</div></div>
+
+<script>
+    const bones = document.querySelectorAll('.bone-unit');
+    const drBox = document.getElementById('doctor-box');
+    let placedCount = 0;
+
+    bones.forEach(bone => {
+        let isDragging = false;
+        let startX, startY;
+
+        bone.addEventListener('pointerdown', e => {
+            if(bone.classList.contains('placed')) return;
+            isDragging = true;
+            const bRect = bone.getBoundingClientRect();
+            startX = e.clientX - bRect.left;
+            startY = e.clientY - bRect.top;
+            bone.setPointerCapture(e.pointerId);
+            bone.style.zIndex = 1000;
+        });
+
+        bone.addEventListener('pointermove', e => {
+            if (!isDragging) return;
+            // Pozisyonu mutlak koordinatla güncelle
+            bone.style.left = (e.clientX - startX) + 'px';
+            bone.style.top = (e.clientY - startY) + 'px';
+            bone.style.right = 'auto'; // Sağdaki parçalar için kilidi aç
+            bone.style.bottom = 'auto';
+        });
+
+        bone.addEventListener('pointerup', e => {
+            isDragging = false;
+            const target = document.getElementById('dest-' + bone.id);
+            const bRect = bone.getBoundingClientRect();
+            const tRect = target.getBoundingClientRect();
+
+            // Merkez noktaları üzerinden hassas mesafe ölçümü
+            const bX = bRect.left + bRect.width / 2;
+            const bY = bRect.top + bRect.height / 2;
+            const tX = tRect.left + tRect.width / 2;
+            const tY = tRect.top + tRect.height / 2;
+
+            const dist = Math.hypot(bX - tX, bY - tY);
+
+            if (dist < 70) {
+                // TAM HİZALAMA KİLİDİ
+                bone.style.left = tRect.left + 'px';
+                bone.style.top = tRect.top + 'px';
+                bone.classList.add('placed');
+                placedCount++;
+                
+                drBox.style.top = "30px";
+                setTimeout(() => drBox.style.top = "-250px", 3500);
+
+                if (placedCount === bones.length) {
+                    flowerExplosion();
+                } else {
+                    confetti({ particleCount: 60, spread: 70, origin: { y: 0.7 } });
+                }
+            }
+        });
+    });
+
+    function flowerExplosion() {
+        const end = Date.now() + 6000;
+        const colors = ['#ff69b4', '#ff1493', '#fffacd', '#ff8c00', '#32cd32'];
+
+        (function frame() {
+            confetti({
+                particleCount: 7,
+                angle: 60,
+                spread: 55,
+                origin: { x: 0, y: 0.5 },
+                colors: colors
+            });
+            confetti({
+                particleCount: 7,
+                angle: 120,
+                spread: 55,
+                origin: { x: 1, y: 0.5 },
+                colors: colors
+            });
+
+            if (Date.now() < end) {
+                requestAnimationFrame(frame);
+            }
+        }());
+    }
+</script>
+</body>
+</html>
